@@ -349,6 +349,14 @@ def webhook_event():
 @app.route("/leads", methods=["GET"])
 def view_leads():
     """Web CRM dashboard showing all Messenger leads."""
+    token = get_page_access_token()
+    # Auto-sync from Facebook if empty or requested via ?sync=1
+    if not lead_manager.get_all_leads() or request.args.get("sync") == "1":
+        try:
+            lead_manager.sync_leads_from_facebook(token)
+        except Exception as e:
+            logger.warning(f"Auto-sync on page load error: {e}")
+            
     all_leads = lead_manager.get_all_leads()
     stats = lead_manager.get_lead_stats()
     return render_template("leads.html", leads=all_leads, stats=stats)
@@ -377,6 +385,19 @@ def api_get_leads():
     }), 200
 
 
+@app.route("/api/leads/sync", methods=["GET", "POST"])
+def api_sync_leads():
+    """Manually trigger full synchronization from Facebook Messenger conversations."""
+    token = get_page_access_token()
+    count = lead_manager.sync_leads_from_facebook(token)
+    return jsonify({
+        "success": True,
+        "synced_count": count,
+        "stats": lead_manager.get_lead_stats(),
+        "leads": lead_manager.get_all_leads()
+    }), 200
+
+
 @app.route("/api/leads/update-status", methods=["POST"])
 def api_update_lead_status():
     """API endpoint to update lead status from CRM UI."""
@@ -397,6 +418,14 @@ def start_background_poller():
     """Continuously monitors conversations and replies within seconds."""
     import time
     logger.info("Starting background auto-reply engine for Poddopaataa...")
+    
+    token = get_page_access_token()
+    
+    # Auto-sync leads from Facebook on startup so no lead is ever missed!
+    try:
+        lead_manager.sync_leads_from_facebook(token)
+    except Exception as e:
+        logger.warning(f"Startup lead sync error: {e}")
     
     # Pre-populate already seen message IDs so we don't reply to past messages
     token = get_page_access_token()

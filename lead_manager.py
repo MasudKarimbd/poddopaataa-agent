@@ -185,6 +185,8 @@ def save_or_update_lead(
         if phone:
             existing_lead["phone"] = phone
             existing_lead["whatsapp_url"] = f"https://wa.me/88{phone}"
+            if existing_lead.get("status") in ["Inquiry", "Pending", ""]:
+                existing_lead["status"] = "New"
         if message:
             existing_lead["last_message"] = message
         existing_lead["updated_at"] = iso_time
@@ -194,7 +196,7 @@ def save_or_update_lead(
         if notes:
             existing_lead["notes"] = f"{existing_lead.get('notes', '')} | {notes}".strip(" |")
         lead_data = existing_lead
-        logger.info(f"Updated existing lead ID: {existing_lead.get('id')}")
+        logger.info(f"Updated existing lead ID: {existing_lead.get('id')} with phone: {phone}")
     else:
         # Create brand new lead
         lead_id = f"PL-{now_bst.strftime('%Y%m%d%H%M%S')}"
@@ -279,3 +281,62 @@ def get_lead_stats() -> Dict:
         "confirmed_bdt": confirmed_bdt,
         "status_counts": status_counts
     }
+
+
+def sync_leads_from_facebook(page_access_token: str, page_id: str = PAGE_ID, limit: int = 25) -> int:
+    """
+    Fetches recent conversations from Facebook Graph API and automatically
+    populates or updates the leads database.
+    """
+    import requests
+    if not page_access_token:
+        return 0
+    try:
+        url = f"https://graph.facebook.com/v20.0/{page_id}/conversations"
+        params = {
+            "fields": "id,updated_time,participants,messages.limit(10){id,message,from,created_time}",
+            "limit": limit,
+            "access_token": page_access_token
+        }
+        res = requests.get(url, params=params, timeout=10)
+        if res.status_code != 200:
+            logger.error(f"Failed to fetch FB conversations: {res.status_code} {res.text}")
+            return 0
+            
+        convs = res.json().get("data", [])
+        synced_count = 0
+        for c in convs:
+            parts = c.get("participants", {}).get("data", [])
+            user_part = [p for p in parts if p["id"] != page_id]
+            if not user_part:
+                continue
+            user_name = user_part[0]["name"]
+            user_psid = user_part[0]["id"]
+            msgs = c.get("messages", {}).get("data", [])
+            
+            found_phone = None
+            latest_msg = ""
+            for m in msgs:
+                if m.get("from", {}).get("id") != page_id:
+                    txt = m.get("message", "")
+                    if not latest_msg:
+                        latest_msg = txt
+                    p = extract_phone_number(txt)
+                    if p:
+                        found_phone = p
+                        break
+                        
+            save_or_update_lead(
+                psid=user_psid,
+                name=user_name,
+                phone=found_phone,
+                message=latest_msg
+            )
+            synced_count += 1
+            
+        logger.info(f"Successfully synced {synced_count} leads from Facebook inbox.")
+        return synced_count
+    except Exception as e:
+        logger.error(f"Error in sync_leads_from_facebook: {e}")
+        return 0
+
