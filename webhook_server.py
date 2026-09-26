@@ -9,9 +9,11 @@ import sys
 import json
 import logging
 from pathlib import Path
-from flask import Flask, request, jsonify, Response
+from datetime import datetime
+from flask import Flask, request, jsonify, Response, render_template, send_file
 import requests
 from dotenv import load_dotenv
+import lead_manager
 
 # Configure logging
 logging.basicConfig(
@@ -102,10 +104,29 @@ def get_knowledge_base() -> str:
     return KNOWLEDGE_BASE
 
 
+def get_user_profile_name(psid: str) -> str:
+    """Fetch user full name from Graph API or fallback gracefully."""
+    token = get_page_access_token()
+    if not token or not psid:
+        return "কবি"
+    try:
+        url = f"{GRAPH_URL}/{psid}"
+        res = requests.get(url, params={"fields": "name,first_name", "access_token": token}, timeout=5)
+        if res.status_code == 200:
+            data = res.json()
+            return data.get("name") or data.get("first_name") or "কবি"
+    except Exception:
+        pass
+    return "কবি"
+
+
 def generate_ai_response(user_message: str, user_name: str = "কবি") -> str:
     """Generate intelligent response using Gemini or resilient rule-based logic."""
     gemini_key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
     kb_content = get_knowledge_base()
+    
+    # Check if user shared phone number
+    detected_phone = lead_manager.extract_phone_number(user_message)
     
     if gemini_key:
         import time
@@ -113,16 +134,21 @@ def generate_ai_response(user_message: str, user_name: str = "কবি") -> str
         for attempt in range(3):
             try:
                 client = genai.Client(api_key=gemini_key)
+                phone_ctx = f"গ্রাহক ফোন নম্বর দিয়েছেন: {detected_phone}" if detected_phone else "গ্রাহক এখনো ফোন নম্বর দেননি।"
                 prompt = (
                     f"{kb_content}\n\n"
                     f"গ্রাহকের নাম: {user_name}\n"
-                    f"গ্রাহকের বার্তা: \"{user_message}\"\n\n"
-                    f"নির্দেশনা:\n"
+                    f"গ্রাহকের বার্তা: \"{user_message}\"\n"
+                    f"ফোন নম্বর অবস্থা: {phone_ctx}\n\n"
+                    f"বিশেষ নির্দেশনা:\n"
                     f"১. আপনি কোনো রোবট নন, একজন অত্যন্ত মার্জিত, রুচিশীল ও সহৃদয় সাহিত্য সহকারী।\n"
                     f"২. গ্রাহকের বার্তা গভীরভাবে বুঝে তার সুনির্দিষ্ট প্রশ্নের বুদ্ধিদীপ্ত উত্তর দিন।\n"
                     f"৩. যদি মিনিটের হিসাব থাকে (যেমন: ৫ মিনিট বা যে কোনো মিনিট): নিজে নির্ভুল গণিত হিসাব করে বলুন (১ম মিনিট ১৫০০ টাকা + পরবর্তী প্রতি অতিরিক্ত মিনিট ১০০০ টাকা। যেমন ৫ মিনিট হলে: ১৫০০ + ৪x১০০০ = ৫৫০০ টাকা)।\n"
                     f"৪. গ্রাহকের প্রশ্নের উত্তর সরাসরি প্রথম লাইনেই দেবেন, অতিরিক্ত বাহুল্য কথা বলবেন না।\n"
-                    f"৫. কবিতা জমা ও আলোচনার জন্য হোয়াটসঅ্যাপ (01409350858) ও ওয়েবসাইটের লিঙ্ক (https://poddopaataa.dreamakerbd.com/PPS03/) সুন্দরভাবে উল্লেখ করুন।"
+                    f"৫. যদি গ্রাহক তার মোবাইল নম্বর দিয়ে থাকেন ({detected_phone or ''}), তবে তাকে অত্যন্ত আন্তরিকভাবে ধন্যবাদ জানান যে তার যোগাযোগ নম্বরটি সংরক্ষিত হয়েছে এবং আমাদের টিম দ্রুত সরাসরি যোগাযোগ করে প্রোডাকশন স্লট নিশ্চিত করবে।\n"
+                    f"৬. যদি গ্রাহক ফোন নম্বর না দিয়ে থাকেন এবং কাজের নিয়ম বা খরচ জানতে চান, তবে আলোচনার শেষে সুন্দরভাবে বলুন: 'আপনার বুকিং স্লট নিশ্চিত করতে আপনার নাম ও মোবাইল নম্বরটি জানান, আমাদের টিম সরাসরি আপনার সাথে যোগাযোগ করবে।'\n"
+                    f"৭. শুক্রবার ও শনিবারে যোগাযোগ করলে বিনীতভাবে মনে করিয়ে দিন যে শুক্র-শনি সাপ্তাহিক ছুটি, তবে এখন স্লট বুক করে রাখলে রবিবার অগ্রাধিকার ভিত্তিতে সবার প্রথমে কাজ শুরু হবে।\n"
+                    f"৮. কবিতা জমা ও আলোচনার জন্য অফিসিয়াল হোয়াটসঅ্যাপ (01409350858) ও ওয়েবসাইটের লিঙ্ক (https://poddopaataa.dreamakerbd.com/PPS03/) সুন্দরভাবে উল্লেখ করুন।"
                 )
                 response = client.models.generate_content(
                     model="gemini-3.8-flash",
@@ -135,9 +161,19 @@ def generate_ai_response(user_message: str, user_name: str = "কবি") -> str
                 logger.warning(f"Gemini API attempt {attempt+1} failed: {e}")
                 time.sleep(1)
 
-    # Intelligent Dynamic Engine
+    # Intelligent Dynamic Fallback Engine
     msg = user_message.strip()
     msg_lower = msg.lower()
+    
+    # Phone number receipt confirmation fallback
+    if detected_phone:
+        return (
+            f"প্রিয় কবি {user_name},\n"
+            f"আপনার যোগাযোগের মোবাইল নম্বরটি ({detected_phone}) সফলভাবে সংরক্ষিত হয়েছে! ✨\n\n"
+            "আমাদের টিম খুব দ্রুত আপনার সাথে সরাসরি যোগাযোগ করে আপনার কাব্যনাট্যের প্রস্তুতি ও বুকিং স্লট নিয়ে কথা বলবে।\n"
+            "ততক্ষণ পর্যন্ত আপনি চাইলে আপনার কবিতার মূল টেক্সট ও একটি স্পষ্ট ছবি আমাদের অফিসিয়াল হোয়াটসঅ্যাপে (01409350858) পাঠিয়ে রাখতে পারেন।\n"
+            "ওয়েবসাইট: https://poddopaataa.dreamakerbd.com/PPS03/"
+        )
     
     # 1. Check for specific minute inquiries (e.g. "৫ মিনিট", "5 min", "২ মিনিটের জন্য কত")
     import re
@@ -348,8 +384,16 @@ def webhook_event():
                     msg_text = msg_obj.get("text", "")
                     attachments = msg_obj.get("attachments", [])
                     
-                    user_desc = "কবি"
-                    logger.info(f"Incoming message from {sender_id}: '{msg_text}' (Attachments: {len(attachments)})")
+                    # Fetch profile name
+                    user_desc = get_user_profile_name(sender_id)
+                    logger.info(f"Incoming message from {user_desc} ({sender_id}): '{msg_text}' (Attachments: {len(attachments)})")
+
+                    # Capture lead immediately
+                    lead_manager.save_or_update_lead(
+                        psid=sender_id,
+                        name=user_desc,
+                        message=msg_text or "অ্যাটাচমেন্ট / ফাইল পাঠানো হয়েছে"
+                    )
 
                     if attachments and not msg_text:
                         reply_text = (
@@ -370,6 +414,50 @@ def webhook_event():
         return Response("EVENT_RECEIVED", status=200)
 
     return Response("Not a page event", status=404)
+
+
+@app.route("/leads", methods=["GET"])
+def view_leads():
+    """Web CRM dashboard showing all Messenger leads."""
+    all_leads = lead_manager.get_all_leads()
+    stats = lead_manager.get_lead_stats()
+    return render_template("leads.html", leads=all_leads, stats=stats)
+
+
+@app.route("/leads/download", methods=["GET"])
+def download_leads_csv():
+    """Download leads as Excel-compatible CSV."""
+    csv_path = BASE_DIR / "leads.csv"
+    if not csv_path.exists():
+        lead_manager.sync_leads_to_csv(lead_manager.get_all_leads())
+    return send_file(
+        csv_path,
+        mimetype="text/csv",
+        as_attachment=True,
+        download_name=f"poddopaataa_leads_{datetime.now().strftime('%Y%m%d')}.csv"
+    )
+
+
+@app.route("/api/leads", methods=["GET"])
+def api_get_leads():
+    """API endpoint to get JSON list of leads and stats."""
+    return jsonify({
+        "stats": lead_manager.get_lead_stats(),
+        "leads": lead_manager.get_all_leads()
+    }), 200
+
+
+@app.route("/api/leads/update-status", methods=["POST"])
+def api_update_lead_status():
+    """API endpoint to update lead status from CRM UI."""
+    data = request.get_json(silent=True) or {}
+    lead_id = data.get("lead_id")
+    status = data.get("status")
+    notes = data.get("notes", "")
+    if not lead_id or not status:
+        return jsonify({"success": False, "error": "Missing parameters"}), 400
+    ok = lead_manager.update_lead_status(lead_id, status, notes)
+    return jsonify({"success": ok}), 200
 
 
 # Background inbox listener for guaranteed zero-delay responses (works regardless of Meta Unpublished mode)
@@ -429,6 +517,13 @@ def start_background_poller():
                             msg_text = last_msg.get("message", "").strip()
                             attachments = last_msg.get("attachments", {}).get("data", [])
                             logger.info(f"[Auto-Poller] New message detected from {user_name} ({user_psid}): '{msg_text}'")
+                            
+                            # Capture lead immediately
+                            lead_manager.save_or_update_lead(
+                                psid=user_psid,
+                                name=user_name,
+                                message=msg_text or "অ্যাটাচমেন্ট / ফাইল পাঠানো হয়েছে"
+                            )
                             
                             if attachments and not msg_text:
                                 reply = (

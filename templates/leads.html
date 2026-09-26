@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>পদ্যপাতা - লিড ম্যানেজমেন্ট ও সিআরএম ড্যাশবোর্ড</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    body { font-family: 'Hind Siliguri', sans-serif; }
+  </style>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen">
+
+  <!-- Top Navbar -->
+  <header class="bg-slate-800/80 backdrop-blur border-b border-slate-700/60 sticky top-0 z-50 px-4 py-3 sm:px-8">
+    <div class="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-4">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-emerald-500 to-teal-400 flex items-center justify-center shadow-lg shadow-emerald-500/20 text-white font-bold text-xl">
+          প
+        </div>
+        <div>
+          <h1 class="text-xl font-bold tracking-tight text-white flex items-center gap-2">
+            পদ্যপাতা <span class="text-xs px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">AI CRM 2.0</span>
+          </h1>
+          <p class="text-xs text-slate-400">মেসেঞ্জার লিড ট্র্যাকিং ও অটোমেশন হাব</p>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-3">
+        <a href="/leads/download" class="inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-medium px-4 py-2 rounded-lg shadow-sm transition">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+          এক্সেল / CSV ডাউনলোড
+        </a>
+        <a href="https://business.facebook.com/latest/inbox/messenger?asset_id=377657402757335" target="_blank" class="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium px-4 py-2 rounded-lg shadow-sm transition">
+          <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.477 2 2 6.145 2 11.258c0 2.91 1.45 5.518 3.723 7.185V22l3.418-1.876c.91.252 1.874.388 2.859.388 5.523 0 10-4.145 10-9.254C22 6.145 17.523 2 12 2zm1.042 12.443l-2.66-2.837-5.187 2.837 5.704-6.057 2.726 2.837 5.122-2.837-5.705 6.057z"/></svg>
+          মেসেঞ্জার ইনবক্স
+        </a>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Container -->
+  <main class="max-w-7xl mx-auto px-4 py-6 sm:px-8 space-y-6">
+
+    <!-- KPI Metric Cards -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <!-- Total Leads -->
+      <div class="bg-slate-800/90 border border-slate-700/70 p-5 rounded-2xl shadow-sm">
+        <div class="flex items-center justify-between">
+          <span class="text-sm font-medium text-slate-400">মোট লিড (Inquiries)</span>
+          <span class="p-2 bg-blue-500/10 text-blue-400 rounded-lg">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
+          </span>
+        </div>
+        <div class="mt-3">
+          <h3 class="text-3xl font-extrabold text-white" id="stat-total">{{ stats.total_leads }}</h3>
+          <p class="text-xs text-slate-400 mt-1">মেসেঞ্জারে যোগাযোগ করা ক্লায়েন্ট</p>
+        </div>
+      </div>
+
+      <!-- Verified Phone Numbers -->
+      <div class="bg-slate-800/90 border border-slate-700/70 p-5 rounded-2xl shadow-sm">
+        <div class="flex items-center justify-between">
+          <span class="text-sm font-medium text-emerald-400">হট লিড (ফোন নম্বরসহ)</span>
+          <span class="p-2 bg-emerald-500/10 text-emerald-400 rounded-lg">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"/></svg>
+          </span>
+        </div>
+        <div class="mt-3">
+          <h3 class="text-3xl font-extrabold text-emerald-400" id="stat-phone">{{ stats.leads_with_phone }}</h3>
+          <p class="text-xs text-slate-400 mt-1">সরাসরি কল বা WhatsApp যোগ্য</p>
+        </div>
+      </div>
+
+      <!-- Today's Leads -->
+      <div class="bg-slate-800/90 border border-slate-700/70 p-5 rounded-2xl shadow-sm">
+        <div class="flex items-center justify-between">
+          <span class="text-sm font-medium text-amber-400">আজকের নতুন লিড</span>
+          <span class="p-2 bg-amber-500/10 text-amber-400 rounded-lg">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+          </span>
+        </div>
+        <div class="mt-3">
+          <h3 class="text-3xl font-extrabold text-amber-400" id="stat-today">{{ stats.today_leads }}</h3>
+          <p class="text-xs text-slate-400 mt-1">দৈনিক টার্গেট: ৩টি কনফার্ম অর্ডার</p>
+        </div>
+      </div>
+
+      <!-- Estimated Pipeline Value -->
+      <div class="bg-slate-800/90 border border-slate-700/70 p-5 rounded-2xl shadow-sm">
+        <div class="flex items-center justify-between">
+          <span class="text-sm font-medium text-purple-400">সম্ভাব্য পাইপলাইন মূল্য</span>
+          <span class="p-2 bg-purple-500/10 text-purple-400 rounded-lg">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+          </span>
+        </div>
+        <div class="mt-3">
+          <h3 class="text-3xl font-extrabold text-purple-400">৳{{ "{:,}".format(stats.total_potential_bdt) }}</h3>
+          <p class="text-xs text-slate-400 mt-1">কনফার্মড: ৳{{ "{:,}".format(stats.confirmed_bdt) }}</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Filters & Search Controls -->
+    <div class="bg-slate-800/70 border border-slate-700/60 p-4 rounded-xl flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4">
+      <div class="flex-1 relative">
+        <input 
+          type="text" 
+          id="search-input" 
+          placeholder="নাম, ফোন নম্বর বা বার্তা দিয়ে খুঁজুন..." 
+          class="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-2.5 pl-10 text-sm focus:outline-none focus:border-emerald-500 text-white placeholder-slate-500"
+          onkeyup="filterLeads()"
+        >
+        <svg class="w-4 h-4 text-slate-500 absolute left-3.5 top-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+      </div>
+
+      <div class="flex items-center gap-3">
+        <select 
+          id="status-filter" 
+          onchange="filterLeads()" 
+          class="bg-slate-900 border border-slate-700 text-sm text-slate-300 rounded-lg px-3 py-2.5 focus:outline-none focus:border-emerald-500"
+        >
+          <option value="ALL">সকল স্ট্যাটাস</option>
+          <option value="New">নতুন লিড (New)</option>
+          <option value="Contacted">যোগাযোগ করা হয়েছে (Contacted)</option>
+          <option value="Confirmed">অর্ডার কনফার্ম (Confirmed)</option>
+          <option value="In Production">প্রোডাকশনে (In Production)</option>
+          <option value="Completed">ডেলিভারি সম্পন্ন (Completed)</option>
+          <option value="Inquiry">সাধারণ জিজ্ঞাসা (Inquiry)</option>
+        </select>
+
+        <button onclick="location.reload()" class="p-2.5 bg-slate-700/60 hover:bg-slate-700 text-slate-300 rounded-lg transition" title="রিফ্রেশ করুন">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- Leads Table / Feed -->
+    <div class="bg-slate-800/90 border border-slate-700/70 rounded-2xl overflow-hidden shadow-sm">
+      <div class="overflow-x-auto">
+        <table class="w-full text-left text-sm text-slate-300" id="leads-table">
+          <thead class="bg-slate-900/80 text-xs uppercase text-slate-400 border-b border-slate-700/80">
+            <tr>
+              <th scope="col" class="px-5 py-4">গ্রাহক / কবি</th>
+              <th scope="col" class="px-5 py-4">ফোন নম্বর</th>
+              <th scope="col" class="px-5 py-4">আনুমানিক দৈর্ঘ্য ও বাজেট</th>
+              <th scope="col" class="px-5 py-4">তারিখ ও সময়</th>
+              <th scope="col" class="px-5 py-4">স্ট্যাটাস</th>
+              <th scope="col" class="px-5 py-4 text-right">অ্যাকশন</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-700/50" id="leads-tbody">
+            {% if leads %}
+              {% for lead in leads %}
+              <tr class="hover:bg-slate-700/30 transition lead-row" data-name="{{ lead.name|lower }}" data-phone="{{ lead.phone }}" data-status="{{ lead.status }}" data-msg="{{ lead.last_message|lower }}">
+                <!-- Name & Message Excerpt -->
+                <td class="px-5 py-4">
+                  <div class="font-semibold text-white flex items-center gap-2">
+                    {{ lead.name }}
+                    {% if lead.phone != 'পেন্ডিং' %}
+                      <span class="inline-block w-2 h-2 rounded-full bg-emerald-400" title="হট লিড"></span>
+                    {% endif %}
+                  </div>
+                  <p class="text-xs text-slate-400 mt-1 line-clamp-1 max-w-xs" title="{{ lead.last_message }}">
+                    "{{ lead.last_message }}"
+                  </p>
+                </td>
+
+                <!-- Phone -->
+                <td class="px-5 py-4">
+                  {% if lead.phone != 'পেন্ডিং' %}
+                    <span class="font-mono text-emerald-300 font-semibold bg-emerald-950/40 px-2.5 py-1 rounded-md border border-emerald-800/40">
+                      {{ lead.phone }}
+                    </span>
+                  {% else %}
+                    <span class="text-xs text-slate-500 italic">পেন্ডিং (মেসেঞ্জারে চ্যাট চলছে)</span>
+                  {% endif %}
+                </td>
+
+                <!-- Package & Budget -->
+                <td class="px-5 py-4">
+                  <div class="text-slate-200 font-medium">{{ lead.duration_est }}</div>
+                  <div class="text-xs text-emerald-400 font-semibold mt-0.5">৳{{ "{:,}".format(lead.estimated_bdt) }}</div>
+                </td>
+
+                <!-- Date -->
+                <td class="px-5 py-4 whitespace-nowrap text-xs text-slate-400">
+                  {{ lead.timestamp_bst }}
+                </td>
+
+                <!-- Status -->
+                <td class="px-5 py-4 whitespace-nowrap">
+                  <select 
+                    onchange="changeStatus('{{ lead.id }}', this.value)"
+                    class="text-xs font-medium px-2.5 py-1.5 rounded-lg border focus:outline-none transition cursor-pointer
+                      {% if lead.status == 'New' %} bg-emerald-500/20 text-emerald-300 border-emerald-500/40
+                      {% elif lead.status == 'Contacted' %} bg-blue-500/20 text-blue-300 border-blue-500/40
+                      {% elif lead.status == 'Confirmed' %} bg-purple-500/20 text-purple-300 border-purple-500/40
+                      {% elif lead.status == 'In Production' %} bg-amber-500/20 text-amber-300 border-amber-500/40
+                      {% elif lead.status == 'Completed' %} bg-slate-500/20 text-slate-300 border-slate-500/40
+                      {% else %} bg-slate-700/50 text-slate-400 border-slate-600/40 {% endif %}"
+                  >
+                    <option value="New" {% if lead.status == 'New' %}selected{% endif %}>নতুন লিড (New)</option>
+                    <option value="Contacted" {% if lead.status == 'Contacted' %}selected{% endif %}>যোগাযোগ করা হয়েছে</option>
+                    <option value="Confirmed" {% if lead.status == 'Confirmed' %}selected{% endif %}>অর্ডার কনফার্ম</option>
+                    <option value="In Production" {% if lead.status == 'In Production' %}selected{% endif %}>প্রোডাকশনে</option>
+                    <option value="Completed" {% if lead.status == 'Completed' %}selected{% endif %}>ডেলিভারি সম্পন্ন</option>
+                    <option value="Inquiry" {% if lead.status == 'Inquiry' %}selected{% endif %}>সাধারণ জিজ্ঞাসা</option>
+                  </select>
+                </td>
+
+                <!-- Quick Action Buttons -->
+                <td class="px-5 py-4 text-right whitespace-nowrap">
+                  <div class="flex items-center justify-end gap-2">
+                    {% if lead.phone != 'পেন্ডিং' %}
+                      <!-- WhatsApp Chat -->
+                      <a href="{{ lead.whatsapp_url }}" target="_blank" class="p-2 bg-emerald-600/20 hover:bg-emerald-600/40 text-emerald-300 rounded-lg transition" title="WhatsApp চ্যাট">
+                        <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M12.031 6.172c-3.181 0-5.767 2.586-5.768 5.766-.001 1.298.38 2.27 1.019 3.287l-.582 2.128 2.182-.573c.978.58 1.911.928 3.145.929 3.178 0 5.767-2.587 5.768-5.766 0-3.18-2.587-5.771-5.764-5.771zm3.392 8.244c-.144.405-.837.774-1.17.824-.299.045-.677.063-1.092-.069-.252-.08-.575-.187-.988-.365-1.739-.751-2.874-2.502-2.961-2.617-.087-.116-.708-.94-.708-1.793s.448-1.273.607-1.446c.159-.173.346-.217.462-.217l.332.007c.106.005.249-.04.39.299.144.347.491 1.2.534 1.287.043.087.072.188.014.303-.058.116-.087.188-.173.289l-.26.302c-.087.101-.178.21-.077.383.101.173.45 1.742 2.012 2.138.203.052.368.043.488-.014.12-.058.491-.572.622-.774.13-.202.26-.173.434-.101.173.072 1.1.52 1.288.607.188.087.318.13.361.202.043.073.043.419-.101.824z"/></svg>
+                      </a>
+
+                      <!-- Direct Call -->
+                      <a href="tel:{{ lead.phone }}" class="p-2 bg-blue-600/20 hover:bg-blue-600/40 text-blue-300 rounded-lg transition" title="ফোন করুন">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"/></svg>
+                      </a>
+                    {% endif %}
+
+                    <!-- Facebook Messenger Link -->
+                    <a href="{{ lead.messenger_url }}" target="_blank" class="p-2 bg-indigo-600/20 hover:bg-indigo-600/40 text-indigo-300 rounded-lg transition" title="মেসেঞ্জার ইনবক্স">
+                      <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.477 2 2 6.145 2 11.258c0 2.91 1.45 5.518 3.723 7.185V22l3.418-1.876c.91.252 1.874.388 2.859.388 5.523 0 10-4.145 10-9.254C22 6.145 17.523 2 12 2zm1.042 12.443l-2.66-2.837-5.187 2.837 5.704-6.057 2.726 2.837 5.122-2.837-5.705 6.057z"/></svg>
+                    </a>
+                  </div>
+                </td>
+              </tr>
+              {% endfor %}
+            {% else %}
+              <tr>
+                <td colspan="6" class="px-5 py-12 text-center text-slate-500">
+                  <div class="max-w-sm mx-auto">
+                    <svg class="w-12 h-12 mx-auto text-slate-600 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"/></svg>
+                    <p class="font-medium text-slate-400">এখনো কোনো লিড সংরক্ষিত হয়নি</p>
+                    <p class="text-xs text-slate-500 mt-1">ফেসবুক পেজে কেউ মেসেজ করলে ও ফোন নম্বর দিলে সাথে সাথে এখানে জমা হবে।</p>
+                  </div>
+                </td>
+              </tr>
+            {% endif %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    function filterLeads() {
+      const search = document.getElementById('search-input').value.toLowerCase();
+      const status = document.getElementById('status-filter').value;
+      const rows = document.querySelectorAll('.lead-row');
+
+      rows.forEach(row => {
+        const name = row.getAttribute('data-name');
+        const phone = row.getAttribute('data-phone');
+        const msg = row.getAttribute('data-msg');
+        const rowStatus = row.getAttribute('data-status');
+
+        const matchesSearch = name.includes(search) || phone.includes(search) || msg.includes(search);
+        const matchesStatus = (status === 'ALL') || (rowStatus === status);
+
+        if (matchesSearch && matchesStatus) {
+          row.style.display = '';
+        } else {
+          row.style.display = 'none';
+        }
+      });
+    }
+
+    async function changeStatus(leadId, newStatus) {
+      try {
+        const res = await fetch('/api/leads/update-status', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ lead_id: leadId, status: newStatus })
+        });
+        const data = await res.json();
+        if (data.success) {
+          const row = document.querySelector(`tr[data-phone] select[onchange*="${leadId}"]`).closest('tr');
+          row.setAttribute('data-status', newStatus);
+        } else {
+          alert('স্ট্যাটাস আপডেট ব্যর্থ হয়েছে!');
+        }
+      } catch (err) {
+        console.error(err);
+        alert('সার্ভারে যোগাযোগ করতে সমস্যা হচ্ছে!');
+      }
+    }
+  </script>
+</body>
+</html>
