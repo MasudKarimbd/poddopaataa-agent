@@ -90,9 +90,22 @@ KNOWLEDGE_BASE = """
 - উত্তর খুব বেশি লম্বা করবেন না, মূল পয়েন্ট স্পষ্ট রাখবেন এবং শেষে হোয়াটসঅ্যাপে যোগাযোগ বা ওয়েবসাইটে দেখার আমন্ত্রণ জানাবেন।
 """
 
+def get_knowledge_base() -> str:
+    """Read knowledge base from knowledge_base.txt if present, with fallback."""
+    kb_file = BASE_DIR / "knowledge_base.txt"
+    if kb_file.exists():
+        try:
+            with open(kb_file, "r", encoding="utf-8") as f:
+                return f.read().strip()
+        except Exception as e:
+            logger.warning(f"Failed to read knowledge_base.txt: {e}")
+    return KNOWLEDGE_BASE
+
+
 def generate_ai_response(user_message: str, user_name: str = "কবি") -> str:
     """Generate intelligent response using Gemini or resilient rule-based logic."""
     gemini_key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
+    kb_content = get_knowledge_base()
     
     if gemini_key:
         import time
@@ -101,7 +114,7 @@ def generate_ai_response(user_message: str, user_name: str = "কবি") -> str
             try:
                 client = genai.Client(api_key=gemini_key)
                 prompt = (
-                    f"{KNOWLEDGE_BASE}\n\n"
+                    f"{kb_content}\n\n"
                     f"গ্রাহকের নাম: {user_name}\n"
                     f"গ্রাহকের বার্তা: \"{user_message}\"\n\n"
                     f"নির্দেশনা:\n"
