@@ -14,4 +14,4 @@ COPY . .
 # Cloud Run / Render injects PORT environment variable (default 8080)
 EXPOSE 8080
 
-CMD ["gunicorn", "--bind", "0.0.0.0:8080", "--workers", "1", "--threads", "4", "--timeout", "0", "webhook_server:app"]
+CMD ["sh", "-c", "gunicorn --bind 0.0.0.0:${PORT:-8080} --workers 1 --threads 4 --timeout 0 webhook_server:app"]
