@@ -52,6 +52,25 @@ def get_page_access_token() -> str:
 
 PAGE_ACCESS_TOKEN = get_page_access_token()
 
+
+def get_appsecret_proof(token: str) -> str:
+    """Computes HMAC-SHA256 appsecret_proof for Meta Graph API calls."""
+    secret = os.getenv("APP_SECRET", "")
+    if not secret:
+        pages_file = BASE_DIR / "facebook_pages.json"
+        if pages_file.exists():
+            try:
+                with open(pages_file, "r", encoding="utf-8") as f:
+                    pages = json.load(f)
+                    secret = pages.get("_meta", {}).get("app_secret", "")
+            except Exception:
+                pass
+    if not secret or not token:
+        return ""
+    import hmac, hashlib
+    return hmac.new(secret.encode("utf-8"), token.encode("utf-8"), hashlib.sha256).hexdigest()
+
+
 # Initialize Flask app
 app = Flask(__name__)
 
@@ -111,7 +130,11 @@ def get_user_profile_name(psid: str) -> str:
         return "কবি"
     try:
         url = f"{GRAPH_URL}/{psid}"
-        res = requests.get(url, params={"fields": "name,first_name", "access_token": token}, timeout=5)
+        params = {"fields": "name,first_name", "access_token": token}
+        proof = get_appsecret_proof(token)
+        if proof:
+            params["appsecret_proof"] = proof
+        res = requests.get(url, params=params, timeout=5)
         if res.status_code == 200:
             data = res.json()
             return data.get("name") or data.get("first_name") or "কবি"
@@ -237,8 +260,13 @@ def send_messenger_reply(recipient_id: str, text: str) -> bool:
         "messaging_type": "RESPONSE"
     }
     
+    params = {"access_token": token}
+    proof = get_appsecret_proof(token)
+    if proof:
+        params["appsecret_proof"] = proof
+    
     try:
-        res = requests.post(url, params={"access_token": token}, json=payload, timeout=10)
+        res = requests.post(url, params=params, json=payload, timeout=10)
         if res.status_code == 200:
             logger.info(f"Message sent successfully to PSID: {recipient_id}")
             return True
@@ -428,6 +456,7 @@ def start_background_poller():
     
     # Pre-populate already seen message IDs so we don't reply to past messages
     token = get_page_access_token()
+    proof = get_appsecret_proof(token)
     try:
         url = f"{GRAPH_URL}/{PAGE_ID}/conversations"
         params = {
@@ -435,6 +464,8 @@ def start_background_poller():
             "limit": 10,
             "access_token": token
         }
+        if proof:
+            params["appsecret_proof"] = proof
         res = requests.get(url, params=params, timeout=10)
         if res.status_code == 200:
             for c in res.json().get("data", []):
@@ -453,6 +484,8 @@ def start_background_poller():
                 "limit": 5,
                 "access_token": token
             }
+            if proof:
+                params["appsecret_proof"] = proof
             res = requests.get(url, params=params, timeout=10)
             if res.status_code == 200:
                 convs = res.json().get("data", [])

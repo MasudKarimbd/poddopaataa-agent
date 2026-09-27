@@ -283,6 +283,24 @@ def get_lead_stats() -> Dict:
     }
 
 
+def get_appsecret_proof(token: str) -> str:
+    """Computes HMAC-SHA256 appsecret_proof for Meta Graph API calls."""
+    secret = os.getenv("APP_SECRET", "")
+    if not secret:
+        pages_file = BASE_DIR / "facebook_pages.json"
+        if pages_file.exists():
+            try:
+                with open(pages_file, "r", encoding="utf-8") as f:
+                    pages = json.load(f)
+                    secret = pages.get("_meta", {}).get("app_secret", "")
+            except Exception:
+                pass
+    if not secret or not token:
+        return ""
+    import hmac, hashlib
+    return hmac.new(secret.encode("utf-8"), token.encode("utf-8"), hashlib.sha256).hexdigest()
+
+
 def sync_leads_from_facebook(page_access_token: str, page_id: str = PAGE_ID, limit: int = 25) -> int:
     """
     Fetches recent conversations from Facebook Graph API and automatically
@@ -298,6 +316,9 @@ def sync_leads_from_facebook(page_access_token: str, page_id: str = PAGE_ID, lim
             "limit": limit,
             "access_token": page_access_token
         }
+        proof = get_appsecret_proof(page_access_token)
+        if proof:
+            params["appsecret_proof"] = proof
         res = requests.get(url, params=params, timeout=10)
         if res.status_code != 200:
             logger.error(f"Failed to fetch FB conversations: {res.status_code} {res.text}")
