@@ -487,7 +487,7 @@ def start_background_poller():
         try:
             url = f"{GRAPH_URL}/{PAGE_ID}/conversations"
             params = {
-                "fields": "id,updated_time,participants,messages.limit(1){id,message,from,created_time,attachments}",
+                "fields": "id,updated_time,participants,messages.limit(5){id,message,from,created_time,attachments}",
                 "limit": 5,
                 "access_token": token
             }
@@ -506,24 +506,46 @@ def start_background_poller():
                     
                     msgs = c.get("messages", {}).get("data", [])
                     if msgs:
-                        last_msg = msgs[0]
-                        msg_id = last_msg.get("id")
-                        sender_id = last_msg.get("from", {}).get("id")
+                        # Find unreplied user messages (skipping Meta native instant replies)
+                        user_texts = []
+                        user_msg_ids = []
+                        has_attachments = False
                         
-                        if sender_id != PAGE_ID and msg_id not in processed_message_ids:
-                            processed_message_ids.add(msg_id)
-                            msg_text = last_msg.get("message", "").strip()
-                            attachments = last_msg.get("attachments", {}).get("data", [])
-                            logger.info(f"[Auto-Poller] New message detected from {user_name} ({user_psid}): '{msg_text}'")
+                        for m in msgs:
+                            sender_id = m.get("from", {}).get("id")
+                            m_text = m.get("message", "").strip()
+                            m_id = m.get("id")
+                            
+                            if sender_id == PAGE_ID:
+                                # Skip Meta's robotic instant reply or ad notice
+                                if "Please let us know how we can help you" in m_text or "replied to an ad" in m_text or "replied to a post" in m_text:
+                                    continue
+                                # Real reply from our AI or team found, so prior messages are answered
+                                break
+                            
+                            # User message
+                            if m_id not in processed_message_ids:
+                                user_msg_ids.append(m_id)
+                                if m_text:
+                                    user_texts.insert(0, m_text)
+                                if m.get("attachments", {}).get("data", []):
+                                    has_attachments = True
+                        
+                        if user_msg_ids:
+                            for mid in user_msg_ids:
+                                processed_message_ids.add(mid)
+                                
+                            combined_text = " \n".join(user_texts).strip()
+                            logger.info(f"[Auto-Poller] New message(s) from {user_name} ({user_psid}): '{combined_text}'")
                             
                             # Capture lead immediately
                             lead_manager.save_or_update_lead(
                                 psid=user_psid,
                                 name=user_name,
-                                message=msg_text or "অ্যাটাচমেন্ট / ফাইল পাঠানো হয়েছে"
+                                message=combined_text or "অ্যাটাচমেন্ট / ফাইল পাঠানো হয়েছে"
                             )
                             
-                            if attachments and not msg_text:
+                            if has_attachments and not combined_text:
                                 reply = (
                                     f"প্রিয় কবি {user_name},\n"
                                     "আপনার পাঠানো কবিতা/ছবির ফাইলটি পেয়েছি। আপনার এই কবিতা দিয়ে চমৎকার আবৃত্তি ও সিনেম্যাটিক ভিজ্যুয়াল সহ কাব্যনাট্য তৈরি করা সম্ভব।\n\n"
@@ -533,12 +555,12 @@ def start_background_poller():
                                     "ওয়েবসাইট: https://poddopaataa.dreamakerbd.com/PPS03/"
                                 )
                             else:
-                                reply = generate_ai_response(msg_text, user_name)
+                                reply = generate_ai_response(combined_text, user_name)
                                 
                             send_messenger_reply(user_psid, reply)
         except Exception as e:
             logger.error(f"[Auto-Poller loop error]: {e}")
-        time.sleep(4)
+        time.sleep(2)
 
 
 # Start background thread automatically
