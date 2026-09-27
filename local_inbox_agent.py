@@ -90,7 +90,15 @@ def send_messenger_message(recipient_id: str, text: str) -> bool:
         if s_res.status_code == 200:
             return True
         else:
+            err_data = s_res.json().get("error", {})
+            err_code = err_data.get("code")
             logger.error(f"Failed to send to {recipient_id}: {s_res.status_code} {s_res.text}")
+            if err_code == 551:
+                # User unavailable (blocked page or deactivated)
+                lead = lead_manager.get_lead_by_psid(recipient_id)
+                if lead:
+                    lead_manager.update_lead_status(lead.get("id"), "Unavailable", "User unavailable / blocked")
+                    lead_manager.record_followup(recipient_id, 99, "Unavailable (code 551)")
             return False
     except Exception as e:
         logger.error(f"Exception sending to {recipient_id}: {e}")
