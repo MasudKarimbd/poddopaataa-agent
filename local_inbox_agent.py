@@ -584,8 +584,11 @@ def run_followup_cycle():
                 logger.warning(f"Timestamp parse error: {te}")
                 continue
 
-            # Meta 24-Hour Policy: Must be strictly within 23 hours of user's last message
-            if hours_since_user > 23.0 or hours_since_user < 0:
+            # If past 23.5 hours and still no response from user after attempts, gracefully archive
+            if hours_since_user > 23.5:
+                if followup_stage > 0 and followup_stage < 99:
+                    lead_manager.update_lead_status(lead.get("id"), "Cold / Inactive", "Completed follow-up window (24h passed)")
+                    lead_manager.record_followup(user_psid, 99, "Completed follow-up sequence, archived")
                 continue
 
             followup_stage = lead.get("followup_stage", 0)
@@ -594,32 +597,38 @@ def run_followup_cycle():
             target_stage = 0
             nudge_msg = ""
 
-            if followup_stage < 1 and 25.0 <= mins_since_page <= 120.0:
-                # Stage 1: Literary hook - ask for couplet
+            # Stage 1: ~1 to 2.5 hours after silence (Warm, personal poke & ice-breaker)
+            if followup_stage < 1 and (mins_since_page >= 55.0 or hours_since_user >= 1.0) and hours_since_user < 3.0:
                 target_stage = 1
                 nudge_msg = (
-                    f"প্রিয় কবি {user_name},\n"
-                    "আপনার পছন্দের কবিতার প্রথম ২–৪টি লাইন কি এখানে একটু শেয়ার করবেন? "
-                    "আপনার কবিতার মেজাজ ও ছন্দ অনুযায়ী কোন ধরনের আবৃত্তি ও আবহ সঙ্গীত সবচেয়ে মানাবে, "
-                    "আমরা একটু দেখে সুন্দর একটি পরিকল্পনা সাজিয়ে দিতে পারতাম! ✨"
+                    f"প্রিয় কবি {user_name}, আপনি কি একটু ব্যস্ত আছেন? ☕\n\n"
+                    "একটা কথা জানতে খুব ইচ্ছে হলো—আচ্ছা, আপনি কতদিন ধরে কবিতা লিখছেন? আর নিজের লেখা সবচেয়ে প্রিয় কবিতা কোনটি? ✨"
                 )
 
-            elif followup_stage < 2 and (mins_since_page >= 120.0 or hours_since_user >= 2.0) and hours_since_user <= 16.0:
-                # Stage 2: Value hook - Combo discount & lock slot
+            # Stage 2: ~3 to 7 hours after silence (Strategic hook: Book vs. Visual Recitation)
+            elif followup_stage < 2 and (mins_since_page >= 170.0 or hours_since_user >= 3.0) and hours_since_user < 7.5:
                 target_stage = 2
                 nudge_msg = (
-                    f"প্রিয় কবি {user_name},\n"
-                    "একটি দারুণ খবর জানিয়ে রাখি—পদ্যপাতার বিশেষ প্যাকেজে ৩টি কবিতা একসাথে দিলে পাচ্ছেন সরাসরি নগদ ১,০০০ টাকা ছাড়! (৪,৫০০ টাকার প্যাকেজ মাত্র ৩,৫০০ টাকায়)।\n\n"
-                    "আপনার সৃষ্টিকে নান্দনিক আবৃত্তি ও ভিজ্যুয়ালে রূপ দিতে প্রস্তুত থাকলে আপনার মোবাইল/হোয়াটসঅ্যাপ নম্বরটি লিখে দিতে পারেন। আমাদের টিম আপনার সাথে যোগাযোগ করে নেবে। 🌿"
+                    f"প্রিয় কবি {user_name}, একটা কথা ভাবছিলাম—\n"
+                    "আজকাল তো কাগুজে বই মানুষ খুব একটা পড়ে না। পাঠক এখন কবিতা দেখতে চায়, আবৃত্তিশিল্পীর ভরাট কণ্ঠে শুনতে চায়। আপনার সৃষ্টিশীল কবিতাকে যদি সুর আর সিনেমার মতো চমৎকার ভিজ্যুয়ালে রূপ দেওয়া যায়, তবে তা মুহূর্তেই হাজারো মানুষের হৃদয়ে পৌঁছে দেওয়া সম্ভব—যা কোনো বই দিয়ে হয়তো হতো না!\n\n"
+                    "আপনার কি এমন কোনো পছন্দের কবিতা আছে যা সুন্দর আবৃত্তির মাধ্যমে সবার কাছে পৌঁছে দিতে চান? 🎬✨"
                 )
 
-            elif followup_stage < 3 and 18.0 <= hours_since_user <= 23.0:
-                # Stage 3: Soft break-up & WhatsApp community invite
+            # Stage 3: ~8 to 20 hours after silence (Caring check-in & YouTube showcase)
+            elif followup_stage < 3 and (mins_since_page >= 420.0 or hours_since_user >= 7.5) and hours_since_user < 21.0:
                 target_stage = 3
                 nudge_msg = (
-                    f"কবি {user_name},\n"
-                    "আশা করি ভালো আছেন। হয়তো ব্যস্ততার কারণে উত্তর দেওয়া হয়নি, কোনো তাড়া নেই। আপনি প্রস্তুত হলে যেকোনো সময় আমাদের জানাতে পারেন।\n\n"
-                    "আপনার সুবিধার্থে আমাদের স্টুডিও হোয়াটসঅ্যাপ লিংক দিয়ে রাখছি: https://wa.me/8801409350858 (01409350858)। আপনার প্রতিটি পঙ্‌ক্তি সুরের মূর্ছনায় অমর হয়ে থাকুক! আন্তরিক শুভকামনা। 🌸"
+                    f"কবি {user_name}, ভাবলাম আপনার একটু খোঁজ নিই। শেষ কবিতাটি কবে লিখেছিলেন?\n\n"
+                    "অবসর পেলে আমাদের পদ্যপাতা ইউটিউব চ্যানেলের (https://www.youtube.com/@Poddopaataa) আবৃত্তিগুলো একটু দেখে নেবেন কিন্তু। আপনার মতো সৃষ্টিশীল মানুষের মতামত আমাদের খুব অনুপ্রাণিত করে! 🌸"
+                )
+
+            # Stage 4: ~21 to 23.5 hours after silence (Polite soft break-up — "বিরক্ত করব না")
+            elif followup_stage < 4 and 21.0 <= hours_since_user <= 23.5:
+                target_stage = 4
+                nudge_msg = (
+                    f"প্রিয় কবি {user_name}, আশা করি ভালো আছেন।\n"
+                    "হয়তো অনেক ব্যস্ততার মধ্যে আছেন। আপনি যদি এখন আগ্রহী না হন, তবে পদ্যপাতা থেকে আপনাকে মেসেজ দিয়ে আর বিরক্ত করব না।\n\n"
+                    "কখনো আপনার কবিতার আবৃত্তি বা ভিডিও নির্মাণের ইচ্ছে হলে আমাদের দরজা সবসময় খোলা রইল (হোয়াটসঅ্যাপ: 01409350858)। আপনার প্রতিটি দিন সৃষ্টিশীলতায় শান্তিময় ও উজ্জ্বল হোক! 🌿"
                 )
 
             if target_stage > 0 and nudge_msg:

@@ -197,6 +197,7 @@ def save_or_update_lead(
                 existing_lead["status"] = "New"
         if message:
             existing_lead["last_message"] = message
+            existing_lead["followup_stage"] = 0
         existing_lead["updated_at"] = iso_time
         if duration_est != "১ মিনিট (নূন্যতম)":
             existing_lead["duration_est"] = duration_est
