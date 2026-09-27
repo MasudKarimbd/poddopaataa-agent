@@ -563,13 +563,13 @@ def start_background_poller():
         time.sleep(2)
 
 
-# Start background thread automatically
-import threading
-poller_thread = threading.Thread(target=start_background_poller, daemon=True)
-poller_thread.start()
-
-
 if __name__ == "__main__":
+    if os.getenv("ENABLE_WEBHOOK_POLLER", "false").lower() == "true":
+        import threading
+        poller_thread = threading.Thread(target=start_background_poller, daemon=True)
+        poller_thread.start()
+        logger.info("Webhook server background poller started.")
+
     port = int(os.getenv("PORT", 8080))
     logger.info(f"Starting Poddopaataa Agent on port {port}...")
     app.run(host="0.0.0.0", port=port)
