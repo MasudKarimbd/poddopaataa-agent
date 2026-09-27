@@ -109,7 +109,7 @@ KNOWLEDGE_BASE = """
    - কবিদের হোয়াটসঅ্যাপ গ্রুপ: https://chat.whatsapp.com/BYga8IgbM31B1L2nlwDXa8
    - বিস্তারিত ওয়েবসাইট: https://poddopaataa.dreamakerbd.com/PPS03/
    - ইউটিউব চ্যানেল: https://www.youtube.com/@Poddopaataa
-"""
+
 উত্তর দেওয়ার নির্দেশিকা:
 - সবসময় বিনীত ও মার্জিত বাংলায় কথা বলবেন।
 - যদি কেউ খরচ জিজ্ঞেস করে, মিনিটের হিসাব ও স্বচ্ছ রেট বুঝিয়ে বলবেন।
