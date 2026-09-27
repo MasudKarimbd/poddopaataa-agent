@@ -148,18 +148,17 @@ def generate_ai_response(user_message: str, user_name: str = "কবি") -> str
             f"৭. শুক্র-শনিবারে নক করলে হালকা রস করে বলুন এই দুই দিন ক্রিয়েটিভ টিম রিচার্জের ছুটি, তবে এখনই নম্বর ও কবিতা রেখে দিলে রবিবার সকালে সবার আগে তার কাজই ধরা হবে।\n"
             f"৮. হোয়াটসঅ্যাপ নম্বর: 01409350858 এবং সাইট: https://poddopaataa.dreamakerbd.com/PPS03/।"
         )
-        for attempt in range(3):
-            try:
-                response = client.models.generate_content(
-                    model="gemini-3.8-flash",
-                    contents=prompt
-                )
-                if response and response.text:
-                    logger.info("[gemini-3.8-flash] Successfully generated witty AI response!")
-                    return response.text.strip()
-            except Exception as e:
-                logger.warning(f"Gemini attempt {attempt+1} failed: {e}")
-                time.sleep(0.5)
+        try:
+            response = client.models.generate_content(
+                model="gemini-flash-lite-latest",
+                contents=prompt
+            )
+            if response and response.text:
+                logger.info("[gemini-flash-lite-latest] Fast AI response generated!")
+                return response.text.strip()
+        except Exception as e:
+            logger.warning(f"Gemini call failed ({e}). Instantly falling back to rule engine.")
+
 
     # Intelligent Dynamic Witty Fallback Engine
     msg = user_message.strip()
