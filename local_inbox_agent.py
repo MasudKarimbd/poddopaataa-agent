@@ -236,6 +236,22 @@ def poll_and_reply_cycle():
                         message=combined_text or "অ্যাটাচমেন্ট পাঠানো হয়েছে"
                     )
 
+                    # Look up existing lead for already captured phone
+                    existing_lead = lead_manager.get_lead_by_psid(user_psid)
+                    already_has_phone = existing_lead.get("phone", "") if existing_lead else ""
+                    if already_has_phone == "পেন্ডিং":
+                        already_has_phone = ""
+
+                    # Build chronological conversation history (last 6 messages)
+                    history_lines = []
+                    for m in reversed(msgs[:6]):
+                        s_id = m.get("from", {}).get("id")
+                        s_name = "পদ্যপাতা" if s_id == PAGE_ID else user_name
+                        m_txt = m.get("message", "").strip().replace("\n", " ")
+                        if m_txt and "Please let us know how we can help" not in m_txt:
+                            history_lines.append(f"[{s_name}]: {m_txt}")
+                    conv_history = "\n".join(history_lines)
+
                     if has_attachments and not combined_text:
                         reply = (
                             f"প্রিয় কবি {user_name},\n"
@@ -246,7 +262,12 @@ def poll_and_reply_cycle():
                             "কবিতাটি টেক্সট আকারে ছবি ও পরিচিতি সহ হোয়াটসঅ্যাপেও পাঠাতে পারেন: 01409350858 (https://wa.me/8801409350858)"
                         )
                     else:
-                        reply = webhook_server.generate_ai_response(combined_text, user_name)
+                        reply = webhook_server.generate_ai_response(
+                            user_message=combined_text,
+                            user_name=user_name,
+                            conversation_history=conv_history,
+                            already_has_phone=already_has_phone
+                        )
 
                 if send_messenger_message(user_psid, reply):
                     logger.info(f"🚀 REPLIED INSTANTLY to {user_name} ({user_psid})!")
