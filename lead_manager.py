@@ -99,6 +99,14 @@ def extract_duration_and_budget(text: str) -> Tuple[str, int]:
     return "১ মিনিট (নূন্যতম)", 1500
 
 
+def _save_leads_json(leads: List[Dict]):
+    """Atomically writes leads to leads.json to avoid partial reads."""
+    tmp_path = LEADS_JSON.with_suffix(".tmp")
+    with open(tmp_path, "w", encoding="utf-8") as f:
+        json.dump(leads, f, ensure_ascii=False, indent=2)
+    tmp_path.replace(LEADS_JSON)
+
+
 def get_all_leads() -> List[Dict]:
     """Loads all leads from leads.json."""
     if not LEADS_JSON.exists():
@@ -221,8 +229,7 @@ def save_or_update_lead(
 
     # Save to JSON
     try:
-        with open(LEADS_JSON, "w", encoding="utf-8") as f:
-            json.dump(leads, f, ensure_ascii=False, indent=2)
+        _save_leads_json(leads)
         # Sync to CSV
         sync_leads_to_csv(leads)
     except Exception as e:
@@ -232,7 +239,7 @@ def save_or_update_lead(
 
 
 def update_lead_status(lead_id: str, new_status: str, notes: str = "") -> bool:
-    """Updates status of a lead ('New', 'Contacted', 'Confirmed', 'Completed', 'Cancelled')."""
+    """Updates status of a lead ('New', 'Contacted', 'Confirmed', 'Completed', 'Cancelled', 'Not Interested')."""
     leads = get_all_leads()
     updated = False
     for lead in leads:
@@ -246,13 +253,59 @@ def update_lead_status(lead_id: str, new_status: str, notes: str = "") -> bool:
             
     if updated:
         try:
-            with open(LEADS_JSON, "w", encoding="utf-8") as f:
-                json.dump(leads, f, ensure_ascii=False, indent=2)
+            _save_leads_json(leads)
             sync_leads_to_csv(leads)
             return True
         except Exception as e:
             logger.error(f"Error updating lead status: {e}")
     return False
+
+
+def is_rejection_message(text: str) -> bool:
+    """Detects if user is declining, uninterested, or not a lead."""
+    if not text:
+        return False
+    t = text.strip().lower()
+    negative_patterns = [
+        "না লাগবে না", "লাগবে না", "না দরকার নাই", "দরকার নেই", "দরকার নাই",
+        "বাদ দেন", "ইন্টারেস্টেড না", "ইচ্ছে নেই", "এখন না", "পরে জানাবো",
+        "পরে ভাবব", "পরে জানাব", "পরে দেখব", "না থাক", "না ভাই", "না আপা",
+        "not interested", "no need", "cancel", "stop"
+    ]
+    return any(p in t for p in negative_patterns)
+
+
+def record_followup(psid: str, stage: int, notes: str = "") -> bool:
+    """Records that a follow-up of a given stage was sent to this PSID."""
+    leads = get_all_leads()
+    updated = False
+    now_iso = datetime.now(BST).isoformat()
+    for lead in leads:
+        if lead.get("psid") == psid:
+            lead["followup_stage"] = stage
+            lead["last_followup_at"] = now_iso
+            lead["updated_at"] = now_iso
+            if notes:
+                lead["notes"] = f"{lead.get('notes', '')} | {notes}".strip(" |")
+            updated = True
+            break
+    if updated:
+        try:
+            _save_leads_json(leads)
+            sync_leads_to_csv(leads)
+            return True
+        except Exception as e:
+            logger.error(f"Error recording follow-up: {e}")
+    return False
+
+
+def get_lead_by_psid(psid: str) -> Optional[Dict]:
+    """Finds lead dict by PSID."""
+    for l in get_all_leads():
+        if l.get("psid") == psid:
+            return l
+    return None
+
 
 
 def get_lead_stats() -> Dict:

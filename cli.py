@@ -45,6 +45,13 @@ def main():
     photo_p.add_argument("--photo", type=str, required=True, help="Local image file path or web image URL")
     photo_p.add_argument("--caption", type=str, default="", help="Photo caption text")
 
+    # Command: post-video
+    video_p = subparsers.add_parser("post-video", help="Upload and publish a video")
+    video_p.add_argument("--page", type=str, required=False, help="Page name or ID")
+    video_p.add_argument("--video", type=str, required=True, help="Local video file path (.mp4, etc.)")
+    video_p.add_argument("--title", type=str, default="", help="Video title")
+    video_p.add_argument("--description", type=str, default="", help="Video description / caption")
+
     # Command: feed
     feed_p = subparsers.add_parser("feed", help="View recent posts on page")
     feed_p.add_argument("--page", type=str, required=False, help="Page name or ID")
@@ -117,6 +124,16 @@ def main():
             res = agent.post_photo(image_path_or_url=args.photo, caption=args.caption, page_id_or_name=args.page)
             print(f" Success! Photo published to '{res['page']}'")
             print(f"Photo Post ID: {res['result'].get('id')}")
+
+        elif args.command == "post-video":
+            res = agent.post_video(
+                video_path=args.video,
+                title=args.title,
+                description=args.description,
+                page_id_or_name=args.page
+            )
+            print(f" Success! Video published to '{res['page']}'")
+            print(f"Video ID: {res['result'].get('id')}")
 
         elif args.command == "feed":
             posts = agent.get_feed(page_id_or_name=args.page, limit=args.limit)

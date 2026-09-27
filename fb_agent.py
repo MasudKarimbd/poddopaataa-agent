@@ -196,10 +196,12 @@ class FacebookAgent:
         video_path: str,
         title: str = "",
         description: str = "",
-        page_id_or_name: Optional[str] = None
+        page_id_or_name: Optional[str] = None,
+        schedule_time: Optional[int] = None
     ) -> Dict[str, Any]:
         """
         Upload a video to the page.
+        Supports post scheduling via epoch timestamp (schedule_time).
         """
         page = self.resolve_page(page_id_or_name)
         video_file = Path(video_path)
@@ -212,9 +214,15 @@ class FacebookAgent:
             "description": description,
             "access_token": page["access_token"]
         }
+        if schedule_time:
+            data["published"] = False
+            data["scheduled_publish_time"] = schedule_time
+        else:
+            data["published"] = True
+
         with open(video_file, "rb") as vf:
             files = {"source": vf}
-            res = requests.post(url, data=data, files=files)
+            res = requests.post(url, data=data, files=files, timeout=300)
 
         res.raise_for_status()
         return {"success": True, "page": page["name"], "page_id": page["id"], "result": res.json()}
