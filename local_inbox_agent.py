@@ -71,6 +71,224 @@ processed_ids = set()
 ai_sent_msg_ids = set()
 human_takeover_until = {}  # user_psid -> timestamp when takeover expires
 
+PROCESSED_COMMENTS_FILE = BASE_DIR / "processed_comments.json"
+processed_comment_ids = set()
+
+
+def load_processed_comments():
+    """Loads previously handled comment IDs from file."""
+    global processed_comment_ids
+    if PROCESSED_COMMENTS_FILE.exists():
+        try:
+            with open(PROCESSED_COMMENTS_FILE, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                processed_comment_ids = set(data)
+                logger.info(f"Loaded {len(processed_comment_ids)} processed comment IDs from cache.")
+        except Exception as e:
+            logger.warning(f"Error loading processed comments cache: {e}")
+
+
+def save_processed_comment(c_id: str):
+    """Saves a comment ID to the persisted processed comments file."""
+    try:
+        processed_comment_ids.add(c_id)
+        with open(PROCESSED_COMMENTS_FILE, "w", encoding="utf-8") as f:
+            json.dump(list(processed_comment_ids), f, ensure_ascii=False)
+    except Exception as e:
+        logger.warning(f"Error saving processed comment {c_id}: {e}")
+
+
+def send_private_reply_to_comment(comment_id: str, text: str) -> str:
+    """Dispatches a 1-on-1 private Messenger DM to a commenter. Returns recipient PSID if successful."""
+    global PAGE_TOKEN, APP_PROOF
+    if not PAGE_TOKEN:
+        PAGE_TOKEN, APP_PROOF = get_page_token_and_proof()
+        if not PAGE_TOKEN:
+            return ""
+
+    url = f"{GRAPH_URL}/me/messages"
+    params = {"access_token": PAGE_TOKEN, "appsecret_proof": APP_PROOF}
+    payload = {
+        "recipient": {"comment_id": comment_id},
+        "message": {"text": text}
+    }
+    try:
+        res = requests.post(url, params=params, json=payload, timeout=12)
+        if res.status_code == 200:
+            data = res.json()
+            psid = data.get("recipient_id", "")
+            msg_id = data.get("message_id")
+            if msg_id:
+                ai_sent_msg_ids.add(msg_id)
+            logger.info(f"💌 Private Messenger DM delivered to commenter for comment {comment_id} (PSID: {psid})")
+            return psid
+        else:
+            logger.warning(f"Private DM skipped/failed for comment {comment_id}: {res.status_code} {res.text}")
+    except Exception as e:
+        logger.error(f"Error sending private reply to comment {comment_id}: {e}")
+    return ""
+
+
+def like_comment(comment_id: str) -> bool:
+    """Likes a public comment as Page."""
+    global PAGE_TOKEN, APP_PROOF
+    try:
+        url = f"{GRAPH_URL}/{comment_id}/likes"
+        params = {"access_token": PAGE_TOKEN, "appsecret_proof": APP_PROOF}
+        res = requests.post(url, data=params, timeout=8)
+        return res.status_code == 200
+    except Exception:
+        return False
+
+
+def reply_public_comment(comment_id: str, text: str) -> bool:
+    """Posts a public threaded reply to a comment."""
+    global PAGE_TOKEN, APP_PROOF
+    try:
+        url = f"{GRAPH_URL}/{comment_id}/comments"
+        params = {"access_token": PAGE_TOKEN, "appsecret_proof": APP_PROOF}
+        payload = {"message": text}
+        res = requests.post(url, params=params, data=payload, timeout=10)
+        return res.status_code == 200
+    except Exception:
+        return False
+
+
+def generate_comment_response(comment_text: str, user_name: str) -> str:
+    """Generates an engaging, literary, and conversion-focused response for a comment."""
+    gemini_key = os.getenv("GEMINI_API_KEY")
+    if gemini_key:
+        try:
+            from google import genai
+            client = genai.Client(api_key=gemini_key)
+            prompt = (
+                f"You are the literary voice and warm host for 'পদ্যপাতা' (Poddopaataa), "
+                f"a premier audio-visual poetry production house that turns written poems into cinematic 'কাব্যনাট্য' "
+                f"(professional voice recitation, custom emotive background score, and HD cinematic visuals).\n\n"
+                f"Commenter Name: {user_name}\n"
+                f"Comment: \"{comment_text}\"\n\n"
+                f"Strict Guidelines for Response in Bengali:\n"
+                f"১. অত্যন্ত আন্তরিক, বিনম্র, মার্জিত ও সৃষ্টিশীল সাহিত্যিক ভঙ্গিতে কথা বলুন। কোনো কৃত্রিম রোবটের মতো লাগা চলবে না।\n"
+                f"২. যদি ব্যবহারকারী 'কাব্যনাট্য কি' বা এর অর্থ/প্রক্রিয়া সম্পর্কে জানতে চান:\n"
+                f"   - কাব্যনাট্যের রূপ বুঝিয়ে বলুন: কবিতার প্রতিটি পঙ্‌ক্তিকে পেশাদার আবৃত্তি, সুরের মূর্ছনা ও সিনেমার মতো জীবন্ত এইচডি ভিজ্যুয়ালের নিখুঁত মেলবন্ধন।\n"
+                f"   - সিদ্ধান্ত নেওয়ার আগে আমাদের পূর্ববর্তী প্রোডাকশন ও কাজের মান দেখে ভালো করে বুঝতে আমাদের অফিশিয়াল ইউটিউব চ্যানেলে ঢুঁ মারার আমন্ত্রণ জানান:\n"
+                f"     👉 https://www.youtube.com/@Poddopaataa — আগে ভালো করে দেখুন ও বুঝুন, তারপর সিদ্ধান্ত নিন!\n"
+                f"৩. যদি খরচ বা কবিতা পাঠানোর নিয়ম জানতে চান:\n"
+                f"   - স্বচ্ছ রেট: ১ম মিনিট ১,৫০০ টাকা, পরবর্তী প্রতি অতিরিক্ত মিনিট ১,০০০ টাকা। একসাথে ৩টি কবিতার প্যাকেজে ১,০০০ টাকা নগদ ছাড় (মাত্র ৩,৫০০ টাকা)!\n"
+                f"   - বিশেষ আশ্বাস: কোনো অগ্রিম বা আগে টাকা দিতে হবে না! কাজ সম্পূর্ণ তৈরি হওয়ার পর পেমেন্ট করবেন।\n"
+                f"   - কাজের মান দেখতে ইউটিউব লিংক দিন: https://www.youtube.com/@Poddopaataa\n"
+                f"   - কবিতা জমা দিতে ইনবক্সে অথবা সরাসরি হোয়াটসঅ্যাপে যুক্ত হতে বলুন: 01409350858 (https://wa.me/8801409350858)।\n"
+                f"৪. যদি সাধারণ প্রশংসা বা ভালো লাগার মন্তব্য হয় (যেমন: সুন্দর, অসাধারণ, ধন্যবাদ, nice, wow, শুভকামনা ইত্যাদি):\n"
+                f"   - গভীর আন্তরিক কৃতজ্ঞতা ও ভালোবাসা জানান।\n"
+                f"   - নিয়মিত কাব্যনাট্য ও আবৃত্তি উপভোগ করতে পদ্যপাতার অফিশিয়াল ইউটিউব চ্যানেল (https://www.youtube.com/@Poddopaataa) ঘুরে আসার আমন্ত্রণ জানান।\n"
+                f"   - তিনি কবিতা লিখলে বা তার পছন্দের কবিতা থাকলে ইনবক্স বা হোয়াটসঅ্যাপে (01409350858) পাঠানোর আমন্ত্রণ জানান।\n"
+                f"৫. আকার: পরিমিত ও আকর্ষণীয় (২ থেকে ৪টি অর্থপূর্ণ বাক্যের মধ্যে)।"
+            )
+            response = client.models.generate_content(
+                model="gemini-flash-lite-latest",
+                contents=prompt
+            )
+            if response and response.text:
+                return response.text.strip()
+        except Exception as e:
+            logger.warning(f"Gemini comment generation error: {e}")
+
+    # Fallback response
+    c_lower = comment_text.lower()
+    if any(w in c_lower for w in ["কাব্যনাট্য", "কি", "কাকে বলে", "বুঝিনি", "দাম", "খরচ", "টাকা", "price", "cost", "info", "পাঠাব"]):
+        return (
+            f"প্রিয় {user_name}, আন্তরিক শুভেচ্ছা ও ভালোবাসা! 🌸\n\n"
+            "কাব্যনাট্য হলো আপনার কবিতার প্রতিটি অনুভূতিকে পেশাদার আবৃত্তি শিল্পীর ভরাট কণ্ঠ, মন ছোঁয়া সুর ও সিনেমার মতো আকর্ষণীয় এইচডি ভিজ্যুয়ালের মেলবন্ধনে রূপ দেওয়া একটি দৃশ্যকাব্য।\n\n"
+            "আমাদের কাজের মান ও আগের সৃষ্টিগুলো দেখে ভালো করে বুঝতে আপনার সুবিধার্থে অফিশিয়াল ইউটিউব চ্যানেলটি ঘুরে আসার অনুরোধ রইল:\n"
+            "👉 https://www.youtube.com/@Poddopaataa — আগে দেখুন ও বুঝুন, তারপর সিদ্ধান্ত নিন!\n\n"
+            "১ম মিনিট ১,৫০০ টাকা, পরবর্তী প্রতি অতিরিক্ত মিনিট ১,০০০ টাকা। ৩টি কবিতার প্যাকেজে সরাসরি ১,০০০ টাকা নগদ ছাড় (মাত্র ৩,৫০০ টাকা)! সবচেয়ে বড় বিষয়—কবিতা সম্পূর্ণ তৈরি ও আবৃত্তি হওয়ার আগে কোনো অগ্রিম টাকা দিতে হবে না। বিস্তারিত জানতে আমাদের ইনবক্সে মেসেজ দিন অথবা হোয়াটসঅ্যাপে যোগাযোগ করুন: 01409350858 (https://wa.me/8801409350858)। 🌿"
+        )
+    else:
+        return (
+            f"অসংখ্য ধন্যবাদ ও বিনম্র কৃতজ্ঞতা প্রিয় {user_name}! 🌸\n"
+            "আপনার এমন আন্তরিক অনুপ্রেরণাই আমাদের পথচলার মূল প্রেরণা। পদ্যপাতার নিয়মিত আবৃত্তি ও সিনেম্যাটিক কাব্যনাট্য উপভোগ করতে আমাদের ইউটিউব চ্যানেলে যুক্ত থাকার আমন্ত্রণ রইল: https://www.youtube.com/@Poddopaataa। আপনার প্রতিটি দিন সাহিত্যের সুর ও স্নিগ্ধতায় ভরে উঠুক! ✨"
+        )
+
+
+def poll_and_reply_comments():
+    """Polls recent posts for unreplied comments, likes them, and converts commenters into Messenger leads."""
+    global PAGE_TOKEN, APP_PROOF
+    if not PAGE_TOKEN:
+        PAGE_TOKEN, APP_PROOF = get_page_token_and_proof()
+        if not PAGE_TOKEN:
+            return
+
+    try:
+        url = f"{GRAPH_URL}/{PAGE_ID}/feed"
+        params = {
+            "fields": "id,created_time,message,comments.limit(20){id,from,message,created_time,like_count,user_likes,comments{id,from,message}}",
+            "limit": 10,
+            "access_token": PAGE_TOKEN,
+            "appsecret_proof": APP_PROOF
+        }
+        res = requests.get(url, params=params, timeout=12)
+        if res.status_code != 200:
+            return
+
+        posts = res.json().get("data", [])
+        for post in posts:
+            post_id = post.get("id")
+            comments_data = post.get("comments", {}).get("data", [])
+            for c in comments_data:
+                c_id = c.get("id")
+                if not c_id or c_id in processed_comment_ids:
+                    continue
+
+                c_from = c.get("from")
+                if c_from and c_from.get("id") == PAGE_ID:
+                    save_processed_comment(c_id)
+                    continue
+
+                # Check if page already replied to this comment in threads
+                child_replies = c.get("comments", {}).get("data", [])
+                page_already_replied = any(r.get("from", {}).get("id") == PAGE_ID for r in child_replies)
+                if page_already_replied:
+                    save_processed_comment(c_id)
+                    continue
+
+                c_text = c.get("message", "").strip()
+                user_name = c_from.get("name", "প্রিয় সুহৃদ") if c_from else "প্রিয় সুহৃদ"
+
+                if not c_text:
+                    # Empty comment or just sticker
+                    like_comment(c_id)
+                    save_processed_comment(c_id)
+                    continue
+
+                logger.info(f"💬 NEW UNREPLIED COMMENT on post {post_id} from {user_name}: '{c_text}'")
+
+                # Generate tailored response
+                reply_text = generate_comment_response(c_text, user_name)
+
+                # 1. Like the comment
+                like_comment(c_id)
+
+                # 2. Public threaded reply (if permitted)
+                reply_public_comment(c_id, reply_text)
+
+                # 3. Direct Private Messenger DM (converts commenter directly into active Messenger lead)
+                user_psid = send_private_reply_to_comment(c_id, reply_text)
+
+                # 4. Save/Update lead in CRM
+                lead_manager.save_or_update_lead(
+                    psid=user_psid or f"comment_{c_id}",
+                    name=user_name,
+                    message=f"[FB Comment on Post {post_id}] {c_text}",
+                    notes=f"Converted from Facebook comment on post {post_id}"
+                )
+
+                save_processed_comment(c_id)
+                time.sleep(1.5)
+
+    except Exception as e:
+        logger.error(f"Error in poll_and_reply_comments: {e}")
+
+
 
 def send_messenger_message(recipient_id: str, text: str) -> bool:
     """Dispatches a message to a Facebook Messenger recipient."""
@@ -417,7 +635,9 @@ def run_followup_cycle():
 
 
 def main():
-    logger.info("Initializing cache with past messages...")
+    logger.info("Initializing cache with past messages and comments...")
+    load_processed_comments()
+
     try:
         url = f"{GRAPH_URL}/{PAGE_ID}/conversations"
         params = {
@@ -438,14 +658,39 @@ def main():
     except Exception as e:
         logger.warning(f"Cache init warning: {e}")
 
-    logger.info("🟢 Poddopaataa Local Conversion Agent is ACTIVE!")
-    logger.info("⚡ Real-time inbox polling: every 3s | Proactive follow-up cycle: every 60s")
+    # If processed_comments.json didn't exist yet, seed it with historical comments to avoid spamming past posts
+    if not PROCESSED_COMMENTS_FILE.exists() or len(processed_comment_ids) == 0:
+        try:
+            feed_url = f"{GRAPH_URL}/{PAGE_ID}/feed"
+            f_params = {
+                "fields": "comments.limit(25){id}",
+                "limit": 10,
+                "access_token": PAGE_TOKEN,
+                "appsecret_proof": APP_PROOF
+            }
+            f_res = requests.get(feed_url, params=f_params, timeout=10)
+            if f_res.status_code == 200:
+                for p in f_res.json().get("data", []):
+                    for comm in p.get("comments", {}).get("data", []):
+                        if comm.get("id"):
+                            processed_comment_ids.add(comm["id"])
+                save_processed_comment("")
+                logger.info(f"Seeded {len(processed_comment_ids)} historical comment IDs to cache.")
+        except Exception as e:
+            logger.warning(f"Error seeding historical comments: {e}")
+
+    logger.info("🟢 Poddopaataa Lead Conversion & Comment Responder Agent is ACTIVE!")
+    logger.info("⚡ Real-time inbox: every 3s | Post comments: every 30s | Proactive follow-ups: every 60s")
 
     loop_count = 0
     while True:
         poll_and_reply_cycle()
 
         loop_count += 1
+        # Run comment auto-responder cycle every 10 iterations (~30 seconds)
+        if loop_count % 10 == 0:
+            poll_and_reply_comments()
+
         # Run proactive follow-up cycle every 20 iterations (~60 seconds)
         if loop_count % 20 == 0:
             run_followup_cycle()
