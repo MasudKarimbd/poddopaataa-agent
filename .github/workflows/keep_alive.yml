@@ -1,0 +1,23 @@
+name: Poddopaataa Agent 24/7 Keep-Alive
+
+on:
+  schedule:
+    # Runs every 10 minutes from GitHub cloud infrastructure
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+
+jobs:
+  keep-alive:
+    name: Ping Cloud Agent
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Render Webhook & Dashboard
+        run: |
+          echo "Pinging Poddopaataa Agent on Render..."
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" -m 30 "https://poddopaataa-agent.onrender.com/")
+          echo "Render HTTP Status: $STATUS"
+          if [ "$STATUS" -eq 200 ] || [ "$STATUS" -eq 301 ] || [ "$STATUS" -eq 302 ]; then
+            echo "Agent is awake and healthy!"
+          else
+            echo "Awakening triggered (HTTP $STATUS)"
+          fi
