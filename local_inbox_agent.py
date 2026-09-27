@@ -68,6 +68,8 @@ def get_page_token_and_proof():
 
 PAGE_TOKEN, APP_PROOF = get_page_token_and_proof()
 processed_ids = set()
+ai_sent_msg_ids = set()
+human_takeover_until = {}  # user_psid -> timestamp when takeover expires
 
 
 def send_messenger_message(recipient_id: str, text: str) -> bool:
@@ -88,6 +90,9 @@ def send_messenger_message(recipient_id: str, text: str) -> bool:
     try:
         s_res = requests.post(send_url, params=s_params, json=payload, timeout=12)
         if s_res.status_code == 200:
+            msg_id = s_res.json().get("message_id")
+            if msg_id:
+                ai_sent_msg_ids.add(msg_id)
             return True
         else:
             err_data = s_res.json().get("error", {})
@@ -154,6 +159,15 @@ def poll_and_reply_cycle():
                     # Ignore Meta's automated instant ad welcome greetings
                     if "Please let us know how we can help you" in m_text or "replied to an ad" in m_text or "replied to a post" in m_text:
                         continue
+                    # Check if this message was sent manually by human admin (not by AI agent)
+                    if m_id not in ai_sent_msg_ids:
+                        try:
+                            m_time = datetime.strptime(m["created_time"], "%Y-%m-%dT%H:%M:%S%z")
+                            mins_since_human = (datetime.now(timezone.utc) - m_time).total_seconds() / 60.0
+                            if mins_since_human < 30.0:
+                                human_takeover_until[user_psid] = time.time() + ((30.0 - mins_since_human) * 60)
+                        except Exception:
+                            pass
                     # A real human or bot reply exists, so earlier messages were already answered
                     break
 
@@ -163,6 +177,14 @@ def poll_and_reply_cycle():
                         user_texts.insert(0, m_text)
                     if m.get("attachments", {}).get("data", []):
                         has_attachments = True
+
+            # If Human Admin is actively chatting with this user, AI stands aside!
+            if time.time() < human_takeover_until.get(user_psid, 0):
+                if user_msg_ids:
+                    logger.info(f"👤 Human Admin is actively chatting with {user_name} ({user_psid}). AI standing aside.")
+                    for mid in user_msg_ids:
+                        processed_ids.add(mid)
+                continue
 
             if user_msg_ids:
                 for mid in user_msg_ids:
@@ -277,6 +299,10 @@ def run_followup_cycle():
             user_psid = parts[0].get("id")
 
             if user_psid in EXCLUDED_PSIDS:
+                continue
+
+            # Skip if Human Admin is in active conversation window
+            if time.time() < human_takeover_until.get(user_psid, 0):
                 continue
 
             # Look up lead record
