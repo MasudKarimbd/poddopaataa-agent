@@ -134,10 +134,11 @@ def like_comment(comment_id: str) -> bool:
     global PAGE_TOKEN, APP_PROOF
     try:
         url = f"{GRAPH_URL}/{comment_id}/likes"
-        params = {"access_token": PAGE_TOKEN, "appsecret_proof": APP_PROOF}
-        res = requests.post(url, data=params, timeout=8)
+        payload = {"access_token": PAGE_TOKEN, "appsecret_proof": APP_PROOF}
+        res = requests.post(url, data=payload, timeout=8)
         return res.status_code == 200
-    except Exception:
+    except Exception as e:
+        logger.error(f"Error liking comment {comment_id}: {e}")
         return False
 
 
@@ -146,11 +147,19 @@ def reply_public_comment(comment_id: str, text: str) -> bool:
     global PAGE_TOKEN, APP_PROOF
     try:
         url = f"{GRAPH_URL}/{comment_id}/comments"
-        params = {"access_token": PAGE_TOKEN, "appsecret_proof": APP_PROOF}
-        payload = {"message": text}
-        res = requests.post(url, params=params, data=payload, timeout=10)
-        return res.status_code == 200
-    except Exception:
+        payload = {
+            "message": text,
+            "access_token": PAGE_TOKEN,
+            "appsecret_proof": APP_PROOF
+        }
+        res = requests.post(url, data=payload, timeout=12)
+        if res.status_code == 200:
+            return True
+        else:
+            logger.warning(f"Public reply failed for comment {comment_id}: {res.status_code} {res.text}")
+            return False
+    except Exception as e:
+        logger.error(f"Error in reply_public_comment: {e}")
         return False
 
 
@@ -210,30 +219,81 @@ def generate_comment_response(comment_text: str, user_name: str) -> str:
         )
 
 
+def get_monitored_post_ids() -> list:
+    """Collects all active content IDs to monitor for comments: feed posts, videos, and active ad stories."""
+    targets = set()
+    # Always include known running ad stories
+    targets.add("377657402757335_1655127473279582")
+
+    # 1. Feed posts
+    try:
+        url = f"{GRAPH_URL}/{PAGE_ID}/feed"
+        params = {"fields": "id", "limit": 10, "access_token": PAGE_TOKEN, "appsecret_proof": APP_PROOF}
+        res = requests.get(url, params=params, timeout=8)
+        if res.status_code == 200:
+            for p in res.json().get("data", []):
+                if p.get("id"):
+                    targets.add(p["id"])
+    except Exception as e:
+        logger.warning(f"Error fetching feed posts for comment monitoring: {e}")
+
+    # 2. Videos / Reels
+    try:
+        v_url = f"{GRAPH_URL}/{PAGE_ID}/videos"
+        v_params = {"fields": "id", "limit": 10, "access_token": PAGE_TOKEN, "appsecret_proof": APP_PROOF}
+        v_res = requests.get(v_url, params=v_params, timeout=8)
+        if v_res.status_code == 200:
+            for v in v_res.json().get("data", []):
+                if v.get("id"):
+                    targets.add(v["id"])
+    except Exception as e:
+        logger.warning(f"Error fetching videos for comment monitoring: {e}")
+
+    # 3. Active Ad stories from Meta Ads Manager
+    try:
+        for act in ["act_743060607284727", "act_201853775777524"]:
+            ad_url = f"{GRAPH_URL}/{act}/ads"
+            ad_params = {
+                "fields": "creative{effective_object_story_id}",
+                "effective_status": '["ACTIVE"]',
+                "access_token": USER_TOKEN
+            }
+            ad_res = requests.get(ad_url, params=ad_params, timeout=8)
+            if ad_res.status_code == 200:
+                for a in ad_res.json().get("data", []):
+                    sid = a.get("creative", {}).get("effective_object_story_id")
+                    if sid:
+                        targets.add(sid)
+    except Exception as e:
+        logger.warning(f"Error fetching active ad stories: {e}")
+
+    return list(targets)
+
+
 def poll_and_reply_comments():
-    """Polls recent posts for unreplied comments, likes them, and converts commenters into Messenger leads."""
+    """Polls all active posts, videos, and ads for unreplied comments, likes them, and posts public replies."""
     global PAGE_TOKEN, APP_PROOF
     if not PAGE_TOKEN:
         PAGE_TOKEN, APP_PROOF = get_page_token_and_proof()
         if not PAGE_TOKEN:
             return
 
-    try:
-        url = f"{GRAPH_URL}/{PAGE_ID}/feed"
-        params = {
-            "fields": "id,created_time,message,comments.limit(20){id,from,message,created_time,like_count,user_likes,comments{id,from,message}}",
-            "limit": 10,
-            "access_token": PAGE_TOKEN,
-            "appsecret_proof": APP_PROOF
-        }
-        res = requests.get(url, params=params, timeout=12)
-        if res.status_code != 200:
-            return
+    target_ids = get_monitored_post_ids()
 
-        posts = res.json().get("data", [])
-        for post in posts:
-            post_id = post.get("id")
-            comments_data = post.get("comments", {}).get("data", [])
+    for post_id in target_ids:
+        try:
+            url = f"{GRAPH_URL}/{post_id}/comments"
+            params = {
+                "fields": "id,from,message,created_time,like_count,user_likes,comments{id,from,message}",
+                "limit": 15,
+                "access_token": PAGE_TOKEN,
+                "appsecret_proof": APP_PROOF
+            }
+            res = requests.get(url, params=params, timeout=10)
+            if res.status_code != 200:
+                continue
+
+            comments_data = res.json().get("data", [])
             for c in comments_data:
                 c_id = c.get("id")
                 if not c_id or c_id in processed_comment_ids:
@@ -255,23 +315,26 @@ def poll_and_reply_comments():
                 user_name = c_from.get("name", "প্রিয় সুহৃদ") if c_from else "প্রিয় সুহৃদ"
 
                 if not c_text:
-                    # Empty comment or just sticker
                     like_comment(c_id)
                     save_processed_comment(c_id)
                     continue
 
                 logger.info(f"💬 NEW UNREPLIED COMMENT on post {post_id} from {user_name}: '{c_text}'")
 
-                # Generate tailored response
+                # Generate tailored literary response
                 reply_text = generate_comment_response(c_text, user_name)
 
                 # 1. Like the comment
-                like_comment(c_id)
+                liked = like_comment(c_id)
+                if liked:
+                    logger.info(f"❤️ Liked comment {c_id}")
 
-                # 2. Public threaded reply (if permitted)
-                reply_public_comment(c_id, reply_text)
+                # 2. Post public threaded reply
+                pub_ok = reply_public_comment(c_id, reply_text)
+                if pub_ok:
+                    logger.info(f"✅ Public reply posted on comment {c_id}")
 
-                # 3. Direct Private Messenger DM (converts commenter directly into active Messenger lead)
+                # 3. Direct Private Messenger DM (if permitted)
                 user_psid = send_private_reply_to_comment(c_id, reply_text)
 
                 # 4. Save/Update lead in CRM
@@ -283,10 +346,10 @@ def poll_and_reply_comments():
                 )
 
                 save_processed_comment(c_id)
-                time.sleep(1.5)
+                time.sleep(2)
 
-    except Exception as e:
-        logger.error(f"Error in poll_and_reply_comments: {e}")
+        except Exception as e:
+            logger.error(f"Error checking comments on post {post_id}: {e}")
 
 
 
