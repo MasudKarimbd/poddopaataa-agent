@@ -337,13 +337,14 @@ def poll_and_reply_comments():
                 # 3. Direct Private Messenger DM (if permitted)
                 user_psid = send_private_reply_to_comment(c_id, reply_text)
 
-                # 4. Save/Update lead in CRM
-                lead_manager.save_or_update_lead(
-                    psid=user_psid or f"comment_{c_id}",
-                    name=user_name,
-                    message=f"[FB Comment on Post {post_id}] {c_text}",
-                    notes=f"Converted from Facebook comment on post {post_id}"
-                )
+                # 4. Save/Update lead in CRM ONLY if we have a real user profile or PSID
+                if user_psid or (user_name and user_name not in ["প্রিয় সুহৃদ", "কবি", "Facebook User"]):
+                    lead_manager.save_or_update_lead(
+                        psid=user_psid or f"comment_{c_id}",
+                        name=user_name,
+                        message=f"[FB Comment on Post {post_id}] {c_text}",
+                        notes=f"Converted from Facebook comment on post {post_id}"
+                    )
 
                 save_processed_comment(c_id)
                 time.sleep(2)
